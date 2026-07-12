@@ -18,11 +18,12 @@
   .header p { font-size: 13px; color: var(--text-muted); margin-top: 6px; }
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1.5rem; }
   .section-label { font-size: 11px; font-weight: 700; color: var(--green-dim); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 1rem; }
-  .field input {
+  .field input, .field textarea {
     width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
     font-size: 14px; color: var(--text); background: #0a0f0a; outline: none; font-family: inherit;
   }
-  .field input:focus { border-color: var(--green-dim); }
+  .field textarea { resize: vertical; min-height: 160px; line-height: 1.5; }
+  .field input:focus, .field textarea:focus { border-color: var(--green-dim); }
   .btn {
     width: 100%; padding: 12px; font-size: 13px; font-weight: 700; letter-spacing: 0.05em;
     background: var(--green); color: #061006; border: none; border-radius: var(--radius-sm);
@@ -46,8 +47,9 @@
   }
   .verdict-badge.phishing { background: rgba(255,75,75,0.15); color: var(--red); border: 1px solid rgba(255,75,75,0.4); }
   .verdict-badge.suspicious { background: rgba(255,198,75,0.15); color: var(--amber); border: 1px solid rgba(255,198,75,0.4); }
-  .verdict-badge.safe { background: rgba(0,255,65,0.15); color: var(--green); border: 1px solid rgba(0,255,65,0.4); }
+  .verdict-badge.safe, .verdict-badge.likely-safe { background: rgba(0,255,65,0.15); color: var(--green); border: 1px solid rgba(0,255,65,0.4); }
   .subscore-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 1.25rem; }
+  .subscore-grid.three-col { grid-template-columns: repeat(3, 1fr); }
   .subscore { background: #0a0f0a; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 4px; text-align: center; }
   .subscore .val { font-size: 18px; font-weight: 700; color: var(--green); }
   .subscore .lbl { font-size: 8px; color: var(--text-hint); text-transform: uppercase; margin-top: 3px; line-height: 1.3; }
@@ -59,12 +61,25 @@
   .finding-row { padding: 8px 0; border-bottom: 1px solid rgba(0,255,65,0.08); font-size: 12px; }
   .finding-row .fname { color: var(--text-muted); text-transform: uppercase; font-size: 10px; letter-spacing: 0.04em; }
   .finding-row .fdetail { color: var(--text); margin-top: 2px; }
+  .finding-row .fdetail.flag { color: var(--amber); }
+  .link-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(0,255,65,0.08); font-size: 12px; }
+  .link-row .lurl { color: var(--text); word-break: break-all; padding-right: 10px; }
+  .link-row .lscore { color: var(--green); font-weight: 700; white-space: nowrap; }
   .spinner {
     display: inline-block; width: 12px; height: 12px; border: 2px solid rgba(0,255,65,0.2);
     border-top-color: var(--green); border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 6px;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
   .error-box { color: var(--red); font-size: 12px; padding: 10px; border: 1px solid rgba(255,75,75,0.4); border-radius: var(--radius-sm); margin-top: 10px; }
+  .checkbox-row { display: flex; align-items: center; gap: 8px; margin-bottom: 1rem; font-size: 12px; color: var(--text-muted); }
+  .checkbox-row input { width: 14px; height: 14px; accent-color: var(--green); }
+  .tab-row { display: flex; gap: 8px; margin-bottom: 1.5rem; }
+  .tab-btn {
+    flex: 1; padding: 10px; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+    background: #0a0f0a; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-muted); cursor: pointer;
+  }
+  .tab-btn.active { background: rgba(0,255,65,0.1); color: var(--green); border-color: var(--green-dim); }
+  .hint { font-size: 11px; color: var(--text-hint); margin-top: 6px; line-height: 1.5; }
 </style>
 </head>
 <body>
@@ -74,23 +89,58 @@
     <p>URL structure, domain age, SSL, Safe Browsing, and content analysis for link risk assessment.</p>
   </div>
 
-  <div class="card">
-    <div class="section-label">Try a sample URL</div>
-    <div class="sample-grid" id="sample-grid"></div>
-
-    <div class="section-label">Or check a URL</div>
-    <div class="field"><input type="text" id="url-input" placeholder="https://example.com/login" /></div>
-    <button class="btn" id="analyze-btn" onclick="analyzeUrl()">Check URL</button>
-    <div id="error-wrap"></div>
+  <div class="tab-row">
+    <div class="tab-btn active" id="tab-url" onclick="switchTab('url')">Check URL</div>
+    <div class="tab-btn" id="tab-email" onclick="switchTab('email')">Check Email</div>
   </div>
 
-  <div class="card" id="result-card" style="display:none;">
-    <div class="section-label">Result</div>
-    <div id="result-wrap"></div>
+  <!-- URL CHECK PANEL -->
+  <div id="panel-url">
+    <div class="card">
+      <div class="section-label">Try a sample URL</div>
+      <div class="sample-grid" id="sample-grid"></div>
+
+      <div class="section-label">Or check a URL</div>
+      <div class="field"><input type="text" id="url-input" placeholder="https://example.com/login" /></div>
+      <button class="btn" id="analyze-btn" onclick="analyzeUrl()">Check URL</button>
+      <div id="error-wrap"></div>
+    </div>
+
+    <div class="card" id="result-card" style="display:none;">
+      <div class="section-label">Result</div>
+      <div id="result-wrap"></div>
+    </div>
+  </div>
+
+  <!-- EMAIL CHECK PANEL -->
+  <div id="panel-email" class="hidden">
+    <div class="card">
+      <div class="section-label">Paste email content</div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="has-headers-check" checked />
+        <label for="has-headers-check">Includes full headers (from "Show Original" / "View Source")</label>
+      </div>
+      <div class="field"><textarea id="email-input" placeholder="Paste the full raw email — headers and body — here. Uncheck the box above if you're only pasting body text."></textarea></div>
+      <div class="hint">Tip: In Gmail, open the email → ⋮ menu → "Show original" → copy everything → paste here.</div>
+      <button class="btn" id="analyze-email-btn" onclick="analyzeEmail()">Check Email</button>
+      <div id="email-error-wrap"></div>
+    </div>
+
+    <div class="card" id="email-result-card" style="display:none;">
+      <div class="section-label">Result</div>
+      <div id="email-result-wrap"></div>
+    </div>
   </div>
 </div>
 
 <script>
+function switchTab(tab) {
+  document.getElementById('tab-url').classList.toggle('active', tab === 'url');
+  document.getElementById('tab-email').classList.toggle('active', tab === 'email');
+  document.getElementById('panel-url').classList.toggle('hidden', tab !== 'url');
+  document.getElementById('panel-email').classList.toggle('hidden', tab !== 'email');
+}
+
 function loadSamples() {
   fetch('/samples')
     .then(res => res.json())
@@ -159,6 +209,94 @@ function renderResult(data) {
       <div class="finding-row"><div class="fname">Google Safe Browsing</div><div class="fdetail">${r.safe_browsing_result.details}</div></div>
       <div class="finding-row"><div class="fname">Page Content</div><div class="fdetail">${r.content_result.details}</div></div>
       <div class="finding-row"><div class="fname">URL Structure</div><div class="fdetail">${r.structure_reasons.join('; ')}</div></div>
+    </div>
+  `;
+}
+
+// ---------- EMAIL ANALYZER ----------
+
+function setEmailLoading(loading) {
+  const btn = document.getElementById('analyze-email-btn');
+  btn.disabled = loading;
+  btn.innerHTML = loading ? '<span class="spinner"></span>Analyzing...' : 'Check Email';
+}
+
+function showEmailError(msg) {
+  document.getElementById('email-error-wrap').innerHTML = `<div class="error-box">${msg}</div>`;
+}
+
+function analyzeEmail() {
+  const content = document.getElementById('email-input').value.trim();
+  const hasHeaders = document.getElementById('has-headers-check').checked;
+  if (!content) { showEmailError('Please paste an email to analyze.'); return; }
+
+  setEmailLoading(true);
+  document.getElementById('email-error-wrap').innerHTML = '';
+
+  fetch('/analyze-email', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email_content: content, has_headers: hasHeaders })
+  })
+  .then(res => res.json())
+  .then(data => {
+    setEmailLoading(false);
+    if (data.error) { showEmailError(data.error); return; }
+    renderEmailResult(data);
+  })
+  .catch(() => { setEmailLoading(false); showEmailError('Request failed. Please try again.'); });
+}
+
+function verdictClass(v) {
+  return (v || '').toLowerCase().replace(/\s+/g, '-');
+}
+
+function renderEmailResult(r) {
+  document.getElementById('email-result-card').style.display = 'block';
+  const wrap = document.getElementById('email-result-wrap');
+
+  const headerReasonsHtml = (r.header_reasons && r.header_reasons.length)
+    ? r.header_reasons.map(reason => `<div class="fdetail flag">• ${reason}</div>`).join('')
+    : '<div class="fdetail">No header issues detected.</div>';
+
+  const linksHtml = (r.links && r.links.length)
+    ? r.links.map(l => `
+        <div class="link-row">
+          <div class="lurl">${l.url}</div>
+          <div class="lscore">${l.score !== null ? l.score : '—'}</div>
+        </div>
+      `).join('')
+    : '<div class="fdetail">No links found in the email body.</div>';
+
+  const languageFlagsHtml = (r.language_flags && r.language_flags.length)
+    ? r.language_flags.map(flag => `<div class="fdetail flag">• ${flag}</div>`).join('')
+    : '<div class="fdetail">No manipulative language patterns detected.</div>';
+
+  wrap.innerHTML = `
+    <div class="result-score">
+      <div class="num">${r.overall_score}</div>
+      <div class="sub">Phishing risk score</div>
+      <div class="verdict-badge ${verdictClass(r.verdict)}">${r.verdict}</div>
+    </div>
+    <div class="subscore-grid three-col">
+      <div class="subscore"><div class="val">${r.header_score}</div><div class="lbl">Header Legitimacy</div></div>
+      <div class="subscore"><div class="val">${r.worst_link_score}</div><div class="lbl">Worst Link Score</div></div>
+      <div class="subscore"><div class="val">${r.language_score}</div><div class="lbl">Language Score</div></div>
+    </div>
+    <div class="notes-box">${r.language_summary || 'No summary available.'}</div>
+    <div class="findings-list">
+      <div class="finding-row">
+        <div class="fname">Header Analysis</div>
+        ${headerReasonsHtml}
+      </div>
+      <div class="finding-row">
+        <div class="fname">Links Found (${r.urls_found})</div>
+        ${linksHtml}
+      </div>
+      <div class="finding-row">
+        <div class="fname">Social Engineering Language</div>
+        ${languageFlagsHtml}
+      </div>
     </div>
   `;
 }
